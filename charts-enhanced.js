@@ -1,0 +1,1 @@
+console.log('Enhanced charts script');

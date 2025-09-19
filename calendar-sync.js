@@ -1,0 +1,1 @@
+console.log('Google Calendar sync integration');
