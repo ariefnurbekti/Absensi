@@ -1,22 +1,20 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const admin = require('firebase-admin');
+
 const app = express();
 const port = 3000;
 const saltRounds = 10; // for bcrypt
 
-// Connect to MongoDB
-mongoose.connect('mongodb://localhost/absensi_db', { useNewUrlParser: true, useUnifiedTopology: true });
-
-const User = mongoose.model('User', {
-    username: String,
-    password: String // This will now store the hashed password
+// Initialize Firebase
+const serviceAccount = require('./firebase-service-account.json');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
 });
 
-const Checkin = mongoose.model('Checkin', {
-    username: String,
-    timestamp: { type: Date, default: Date.now }
-});
+const db = admin.firestore();
+const usersCollection = db.collection('users');
+const checkinsCollection = db.collection('checkins');
 
 app.use(express.static('.'));
 app.use(express.urlencoded({ extended: true }));
@@ -28,14 +26,16 @@ app.get('/', (req, res) => {
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
-    const user = await User.findOne({ username });
-    if (user) {
-        const match = await bcrypt.compare(password, user.password);
-        if (match) {
-            res.redirect('/dashboard.html');
-        } else {
-            res.send('Invalid username or password');
-        }
+    const userSnapshot = await usersCollection.where('username', '==', username).get();
+    if (userSnapshot.empty) {
+        res.send('Invalid username or password');
+        return;
+    }
+
+    const user = userSnapshot.docs[0].data();
+    const match = await bcrypt.compare(password, user.password);
+    if (match) {
+        res.redirect('/dashboard.html');
     } else {
         res.send('Invalid username or password');
     }
@@ -44,20 +44,19 @@ app.post('/login', async (req, res) => {
 app.post('/register', async (req, res) => {
     const { username, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-    const newUser = new User({ username, password: hashedPassword });
-    await newUser.save();
+    await usersCollection.add({ username, password: hashedPassword });
     res.redirect('/login.html');
 });
 
 app.post('/checkin', async (req, res) => {
     const { username } = req.body; // Assuming username is sent in the request
-    const newCheckin = new Checkin({ username });
-    await newCheckin.save();
+    await checkinsCollection.add({ username, timestamp: new Date() });
     res.status(200).send('Check-in successful');
 });
 
 app.get('/checkins', async (req, res) => {
-    const checkins = await Checkin.find().sort({ timestamp: -1 });
+    const checkinsSnapshot = await checkinsCollection.orderBy('timestamp', 'desc').get();
+    const checkins = checkinsSnapshot.docs.map(doc => doc.data());
     res.json(checkins);
 });
 
