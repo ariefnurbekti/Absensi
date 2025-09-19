@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - PT Nira Medika</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Google Platform Library -->
+    <script src="https://apis.google.com/js/platform.js" async defer></script>
+    <!-- Google Client ID -->
+    <meta name="google-signin-client_id" content="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com">
+</head>
+<body>
+    <div class="navbar">
+        <a href="index.html">Home</a>
+        <a href="login.html">Login</a>
+    </div>
+    <div class="container">
+        <h2>Login to Your Account</h2>
+        <p>Please sign in with your Google Account to continue.</p>
+        <!-- Tombol Google Sign-In -->
+        <div id="g-signin2" class="g-signin2"></div>
+    </div>
+
+    <script>
+        function onSignIn(googleUser) {
+            // Mendapatkan ID Token dari Google User
+            const id_token = googleUser.getAuthResponse().id_token;
+
+            // Mengirim ID Token ke backend Anda
+            fetch('/auth/google', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ idToken: id_token }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Redirect ke halaman dashboard jika login berhasil
+                if(data.redirectUrl){
+                    window.location.href = data.redirectUrl;
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                // Tampilkan pesan error kepada pengguna jika perlu
+            });
+        }
+
+        // Fungsi untuk merender tombol Google Sign-In
+        function renderButton() {
+          gapi.signin2.render('g-signin2', {
+            'scope': 'profile email',
+            'width': 240,
+            'height': 50,
+            'longtitle': true,
+            'theme': 'dark',
+            'onsuccess': onSignIn
+          });
+        }
+    </script>
+    <script src="https://apis.google.com/js/platform.js?onload=renderButton" async defer></script>
+</body>
+</html>

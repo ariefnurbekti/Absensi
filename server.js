@@ -1,10 +1,9 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
 const admin = require('firebase-admin');
+const session = require('express-session');
 
 const app = express();
 const port = 3000;
-const saltRounds = 10; // for bcrypt
 
 // Initialize Firebase
 const serviceAccount = require('./firebase-service-account.json');
@@ -16,47 +15,119 @@ const db = admin.firestore();
 const usersCollection = db.collection('users');
 const checkinsCollection = db.collection('checkins');
 
-app.use(express.static('.'));
+// Middleware
+app.use(express.static('public')); // Serve static files from 'public' directory
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // To parse JSON bodies
+app.use(express.json());
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+// Session configuration
+app.use(session({
+    secret: 'your-very-secret-key-change-it', // Ganti dengan secret key yang kuat
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // Atur ke true jika menggunakan HTTPS
+}));
 
-app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-    const userSnapshot = await usersCollection.where('username', '==', username).get();
-    if (userSnapshot.empty) {
-        res.send('Invalid username or password');
-        return;
-    }
-
-    const user = userSnapshot.docs[0].data();
-    const match = await bcrypt.compare(password, user.password);
-    if (match) {
-        res.redirect('/dashboard.html');
+// Middleware untuk memeriksa otentikasi
+function checkAuth(req, res, next) {
+    if (req.session.user) {
+        next();
     } else {
-        res.send('Invalid username or password');
+        res.redirect('/login.html');
+    }
+}
+
+// Routes
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
+});
+
+// Google Auth Endpoint
+app.post('/auth/google', async (req, res) => {
+    const { idToken } = req.body;
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        const { uid, email, name, picture } = decodedToken;
+
+        const userRef = usersCollection.doc(uid);
+        const userDoc = await userRef.get();
+
+        if (!userDoc.exists) {
+            // Pengguna baru, simpan ke Firestore
+            await userRef.set({
+                uid,
+                email,
+                name,
+                picture,
+                createdAt: new Date()
+            });
+        }
+        
+        // Buat sesi untuk pengguna
+        req.session.user = {
+            uid,
+            email,
+            name,
+            picture
+        };
+        
+        res.status(200).json({ message: "Login successful", redirectUrl: "/dashboard.html" });
+
+    } catch (error) {
+        console.error("Error verifying Google token:", error);
+        res.status(401).send("Authentication failed");
     }
 });
 
-app.post('/register', async (req, res) => {
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-    await usersCollection.add({ username, password: hashedPassword });
-    res.redirect('/login.html');
+// Logout Endpoint
+app.get('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            return res.redirect('/dashboard.html');
+        }
+        res.clearCookie('connect.sid');
+        res.redirect('/login.html');
+    });
 });
 
-app.post('/checkin', async (req, res) => {
-    const { username } = req.body; // Assuming username is sent in the request
-    await checkinsCollection.add({ username, timestamp: new Date() });
-    res.status(200).send('Check-in successful');
+// Protected route example
+app.get('/dashboard.html', checkAuth, (req, res) => {
+    res.sendFile(__dirname + '/public/dashboard.html');
 });
 
-app.get('/checkins', async (req, res) => {
-    const checkinsSnapshot = await checkinsCollection.orderBy('timestamp', 'desc').get();
-    const checkins = checkinsSnapshot.docs.map(doc => doc.data());
+// Endpoint untuk mendapatkan data pengguna saat ini
+app.get('/api/user', checkAuth, (req, res) => {
+    res.json(req.session.user);
+});
+
+
+app.post('/checkin', checkAuth, async (req, res) => {
+    const { uid, name } = req.session.user;
+    try {
+        await checkinsCollection.add({ 
+            userId: uid,
+            username: name, // Simpan nama pengguna untuk kemudahan
+            timestamp: new Date() 
+        });
+        res.status(200).send('Check-in successful');
+    } catch(error){
+        console.error("Error on check-in:", error);
+        res.status(500).send("Check-in failed");
+    }
+});
+
+
+app.get('/checkins', checkAuth, async (req, res) => {
+    // Hanya ambil check-in milik pengguna yang sedang login
+    const { uid } = req.session.user;
+    const checkinsSnapshot = await checkinsCollection.where('userId', '==', uid).orderBy('timestamp', 'desc').get();
+    const checkins = checkinsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            username: data.username,
+            timestamp: data.timestamp.toDate() // Konversi Firestore Timestamp ke Date
+        }
+    });
     res.json(checkins);
 });
 

@@ -9,9 +9,14 @@
 </head>
 <body>
     <div class="navbar">
-        <a href="dashboard.html">Dashboard</a>
-        <a href="planner.html">Planner</a>
-        <a href="#" id="logout-btn">Logout</a>
+        <div class="nav-left">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="planner.html">Planner</a>
+        </div>
+        <div class="nav-right">
+            <span id="user-info"></span>
+            <a href="/logout">Logout</a>
+        </div>
     </div>
     <div class="container">
         <h1>Dashboard</h1>
@@ -33,16 +38,15 @@
         </div>
 
         <div class="checkin-history">
-            <h2>Check-in History</h2>
+            <h2>Your Check-in History</h2>
             <table id="checkin-table">
                 <thead>
                     <tr>
-                        <th>Username</th>
                         <th>Timestamp</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Check-in data will be populated here by JavaScript -->
+                    <!-- Check-in data will be populated here -->
                 </tbody>
             </table>
         </div>
@@ -51,27 +55,45 @@
     <script>
         let checkinChart;
 
-        document.getElementById('checkin-btn').addEventListener('click', async () => {
-            // A real app would get the username from the session
-            const username = localStorage.getItem('username'); 
-            if (!username) {
-                 alert('You must be logged in to check in.');
-                 window.location.href = 'login.html';
-                 return;
-            }
+        // Fungsi untuk mengambil data pengguna dan check-in
+        async function initializeDashboard() {
+            await fetchUserData();
+            await fetchCheckins();
+        }
 
+        // Mengambil data pengguna dari server
+        async function fetchUserData() {
             try {
-                const response = await fetch('/checkin', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ username })
-                });
+                const response = await fetch('/api/user');
+                if (!response.ok) {
+                    // Jika tidak terotentikasi, redirect ke halaman login
+                    window.location.href = '/login.html';
+                    return;
+                }
+                const user = await response.json();
+                displayUserInfo(user);
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                window.location.href = '/login.html';
+            }
+        }
 
+        // Menampilkan informasi pengguna di navbar
+        function displayUserInfo(user) {
+            const userInfoSpan = document.getElementById('user-info');
+            userInfoSpan.innerHTML = `
+                <img src="${user.picture}" class="profile-pic" alt="Profile Picture">
+                <span>Welcome, ${user.name}</span>
+            `;
+        }
+
+        // Event listener untuk tombol check-in
+        document.getElementById('checkin-btn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/checkin', { method: 'POST' });
                 if (response.ok) {
                     alert('Check-in successful!');
-                    fetchCheckins(); // Refresh the list and chart
+                    fetchCheckins(); // Muat ulang data check-in
                 } else {
                     alert('Check-in failed.');
                 }
@@ -81,37 +103,33 @@
             }
         });
 
+        // Mengambil data check-in dari server
         async function fetchCheckins() {
             try {
                 const response = await fetch('/checkins');
                 const checkins = await response.json();
-
                 populateTable(checkins);
                 renderChart(checkins);
-
             } catch (error) {
                 console.error('Error fetching check-ins:', error);
             }
         }
 
+        // Mengisi tabel riwayat check-in
         function populateTable(checkins) {
             const tableBody = document.querySelector('#checkin-table tbody');
-            tableBody.innerHTML = ''; // Clear existing data
+            tableBody.innerHTML = ''; // Hapus data lama
 
             checkins.forEach(checkin => {
                 const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${checkin.username}</td>
-                    <td>${new Date(checkin.timestamp).toLocaleString()}</td>
-                `;
+                row.innerHTML = `<td>${new Date(checkin.timestamp).toLocaleString()}</td>`;
                 tableBody.appendChild(row);
             });
         }
 
+        // Merender grafik check-in
         function renderChart(checkins) {
             const ctx = document.getElementById('checkinChart').getContext('2d');
-            
-            // Process data for the chart
             const checkinsByDay = {};
             for (let i = 6; i >= 0; i--) {
                 const d = new Date();
@@ -148,31 +166,16 @@
                 options: {
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
                         }
                     }
                 }
             });
         }
 
-        // Store username on login for the demo
-        const loginForm = document.querySelector('form[action="/login"]');
-        if (loginForm) {
-            loginForm.addEventListener('submit', () => {
-                const usernameInput = document.getElementById('username');
-                if(usernameInput) {
-                    localStorage.setItem('username', usernameInput.value);
-                }
-            });
-        }
-
-        document.getElementById('logout-btn').addEventListener('click', () => {
-            localStorage.removeItem('username');
-            window.location.href = 'login.html';
-        });
-
-        // Fetch initial check-in data when the page loads
-        document.addEventListener('DOMContentLoaded', fetchCheckins);
+        // Panggil fungsi inisialisasi saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', initializeDashboard);
     </script>
 </body>
 </html>
