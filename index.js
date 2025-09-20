@@ -1,200 +1,205 @@
-'''
-This file sets up a complete Express.js server for the employee attendance application.
-
-Key functionalities:
-1.  **Express Server Setup**: Initializes an Express app and sets up necessary middleware like `express.json` for parsing JSON bodies and `express.static` to serve frontend files from the 'public' directory.
-
-2.  **Session Management**: Uses `express-session` to manage user sessions. Sessions are stored in memory, which is suitable for development but should be replaced with a persistent store for production.
-
-3.  **Google OAuth 2.0 Integration**: 
-    - Includes an endpoint `/auth/google` to handle sign-ins. It receives an ID token from the frontend.
-    - Uses `google-auth-library` to verify the token.
-    - On successful verification, it extracts the user's profile information (name, email, picture), stores it in an in-memory `users` database, and establishes a session for the user.
-
-4.  **Authentication Middleware**: 
-    - A middleware function `ensureAuthenticated` checks if a user is logged into a session.
-    - It protects sensitive routes (like `/api/user`, `/dashboard.html`, etc.), redirecting unauthenticated users to the login page.
-
-5.  **In-Memory Data Storage**: 
-    - `users`: Stores user profiles, keyed by user ID.
-    - `checkins`: An array storing all check-in records. Each record includes a `userId`, `username`, and `timestamp`.
-    - `tasks`: An array storing all task items. Each task has an `id`, `userId`, `title`, and `completed` status.
-
-6.  **API Endpoints**:
-    - `/api/user`: Returns the currently logged-in user's data.
-    - `/checkin`: Allows a logged-in user to check in. It prevents duplicate check-ins on the same day.
-    - `/checkins`: Returns all check-in records for the logged-in user.
-    - `/api/tasks`: 
-        - `GET`: Returns all tasks for the logged-in user.
-        - `POST`: Creates a new task for the logged-in user.
-    - `/api/tasks/:id`:
-        - `DELETE`: Deletes a specific task by its ID.
-
-7.  **Logout**: 
-    - The `/logout` route clears the user's session and redirects them to the login page.
-
-8.  **Server Initialization**: The server starts listening on a specified port (defaults to 3000).
-'''
-
 const express = require('express');
 const session = require('express-session');
-const { OAuth2Client } = require('google-auth-library');
-const crypto = require('crypto');
+const passport = require('passport');
+const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
+const { Low, JSONFile } = require('lowdb');
+const ShortUniqueId = require('short-unique-id');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-const GOOGLE_CLIENT_ID = '288114894958-a922hgobtrnm1pp8ln8gmcur1sa17rcr.apps.googleusercontent.com';
+const adapter = new JSONFile('db.json');
+const db = new Low(adapter);
 
-const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+const uid = new ShortUniqueId({ length: 10 });
 
-// --- In-Memory Data Stores ---
-const users = {}; // Store user data { userId: { name, email, picture } }
-const checkins = []; // Store check-in data { userId, username, timestamp }
-const tasks = []; // Store tasks { id, userId, title, completed }
-
-// --- Middleware ---
-app.use(express.json());
-app.use(session({
-    secret: 'super-secret-key-change-it',
-    resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false } // Use `true` in production with HTTPS
-}));
-
-// Middleware to protect routes
-function ensureAuthenticated(req, res, next) {
-    if (req.session.userId) {
-        return next();
+// Initialize the database with a default structure if it's empty
+async function initializeDatabase() {
+    await db.read();
+    db.data = db.data || {};
+    db.data.users = db.data.users || [];
+    if (!db.data.boards) {
+        db.data.boards = [
+            {
+                id: 'board-main',
+                title: 'Project Alpha',
+                columns: [
+                    {
+                        id: 'col-1',
+                        title: 'Backlog',
+                        cards: [
+                            { id: uid(), text: 'Design the login page' },
+                            { id: uid(), text: 'Set up the database schema' }
+                        ]
+                    },
+                    {
+                        id: 'col-2',
+                        title: 'In Progress',
+                        cards: [
+                            { id: uid(), text: 'Develop the main dashboard UI' }
+                        ]
+                    },
+                    {
+                        id: 'col-3',
+                        title: 'Done',
+                        cards: []
+                    }
+                ]
+            }
+        ];
     }
-    // If it's an API call, send a 401 Unauthorized
-    if (req.path.startsWith('/api/') || req.path.startsWith('/checkin')) {
-        return res.status(401).json({ error: 'User not authenticated' });
-    }
-    // For page loads, redirect to login
-    res.redirect('/login.html');
+    await db.write();
 }
 
-// Serve static files from 'public' directory
-// Unprotected files (login page and its assets)
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware
 app.use(express.static('public'));
+app.use(express.json());
+app.use(session({
+    secret: 'your_secret_key',
+    resave: false,
+    saveUninitialized: true,
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 
-// --- Authentication Routes ---
-
-app.post('/auth/google', async (req, res) => {
-    const { idToken } = req.body;
-    try {
-        const ticket = await client.verifyIdToken({
-            idToken,
-            audience: GOOGLE_CLIENT_ID,
-        });
-        const payload = ticket.getPayload();
-        const { sub: userId, name, email, picture } = payload;
-
-        // Store user in our "database"
-        if (!users[userId]) {
-            users[userId] = { name, email, picture };
-        }
-
-        // Create a session
-        req.session.userId = userId;
-        res.status(200).json({ redirectUrl: '/dashboard.html' });
-
-    } catch (error) {
-        console.error('Google Auth Error:', error);
-        res.status(401).json({ error: 'Invalid Google token' });
+// Passport configuration
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: '/auth/google/callback',
+    scope: ['profile', 'email']
+}, async (accessToken, refreshToken, profile, done) => {
+    await db.read();
+    let user = db.data.users.find(u => u.id === profile.id);
+    if (!user) {
+        user = {
+            id: profile.id,
+            name: profile.displayName,
+            email: profile.emails[0].value,
+            picture: profile.photos[0].value,
+            checkIns: [],
+        };
+        db.data.users.push(user);
+        await db.write();
     }
+    done(null, user);
+}));
+
+passport.serializeUser((user, done) => {
+    done(null, user.id);
 });
 
-app.get('/logout', (req, res) => {
-    req.session.destroy(err => {
-        if (err) {
-            return res.redirect('/dashboard.html');
-        }
-        res.clearCookie('connect.sid');
+passport.deserializeUser(async (id, done) => {
+    await db.read();
+    const user = db.data.users.find(u => u.id === id);
+    done(null, user);
+});
+
+// --- Routes ---
+
+// Auth Routes
+app.get('/auth/google', passport.authenticate('google'));
+app.get('/auth/google/callback', passport.authenticate('google', {
+    successRedirect: '/dashboard.html',
+    failureRedirect: '/login.html'
+}));
+app.get('/logout', (req, res, next) => {
+    req.logout(err => {
+        if (err) { return next(err); }
         res.redirect('/login.html');
     });
 });
 
-// --- Protected API Routes & Pages ---
+// Middleware to check authentication
+function ensureAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) { return next(); }
+    res.status(401).redirect('/login.html');
+}
 
-// The following routes and static assets require authentication
-app.use([
-    '/dashboard.html',
-    '/planner.html',
-    '/settings.html',
-    '/manage-project.html',
-    '/api', 
-    '/checkin',
-    '/checkins'
-], ensureAuthenticated);
+// API Routes
+app.get('/api/user', ensureAuthenticated, (req, res) => {
+    res.json(req.user);
+});
 
-app.get('/api/user', (req, res) => {
-    const user = users[req.session.userId];
-    if (user) {
-        res.json(user);
+app.post('/api/checkin', ensureAuthenticated, async (req, res) => {
+    await db.read();
+    const user = db.data.users.find(u => u.id === req.user.id);
+    const today = new Date().toLocaleDateString();
+    if (user && !user.checkIns.some(c => c.date === today)) {
+        user.checkIns.push({ date: today, time: new Date().toLocaleTimeString() });
+        await db.write();
+        res.status(200).json({ message: 'Checked in successfully' });
     } else {
-        res.status(404).json({ error: 'User not found' });
+        res.status(400).json({ message: 'Already checked in today' });
     }
 });
 
-app.post('/checkin', (req, res) => {
-    const userId = req.session.userId;
-    const user = users[userId];
-    const today = new Date().toISOString().split('T')[0];
+// --- Kanban Board API Endpoints ---
 
-    const hasCheckedInToday = checkins.some(
-        c => c.userId === userId && new Date(c.timestamp).toISOString().split('T')[0] === today
-    );
+// GET the entire board structure
+app.get('/api/board', ensureAuthenticated, async (req, res) => {
+    await db.read();
+    // For now, we only have one board
+    res.json(db.data.boards[0]);
+});
 
-    if (hasCheckedInToday) {
-        return res.status(409).json({ message: 'User has already checked in today' });
+// POST a new card to a column
+app.post('/api/cards', ensureAuthenticated, async (req, res) => {
+    const { columnId, text } = req.body;
+    if (!columnId || !text) {
+        return res.status(400).json({ message: 'Column ID and text are required' });
     }
-
-    checkins.push({ userId, username: user.name, timestamp: new Date() });
-    res.status(201).json({ message: 'Check-in successful' });
-});
-
-app.get('/checkins', (req, res) => {
-    const userCheckins = checkins.filter(c => c.userId === req.session.userId);
-    res.json(userCheckins.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
-});
-
-// --- Task Planner API ---
-
-app.get('/api/tasks', (req, res) => {
-    const userTasks = tasks.filter(t => t.userId === req.session.userId);
-    res.json(userTasks);
-});
-
-app.post('/api/tasks', (req, res) => {
-    const { title } = req.body;
-    if (!title) {
-        return res.status(400).json({ error: 'Task title is required' });
+    await db.read();
+    const board = db.data.boards[0];
+    const column = board.columns.find(c => c.id === columnId);
+    if (column) {
+        const newCard = { id: uid(), text };
+        column.cards.push(newCard);
+        await db.write();
+        res.status(201).json(newCard);
+    } else {
+        res.status(404).json({ message: 'Column not found' });
     }
-    const newTask = {
-        id: crypto.randomBytes(16).toString('hex'),
-        userId: req.session.userId,
-        title,
-        completed: false
-    };
-    tasks.push(newTask);
-    res.status(201).json(newTask);
 });
 
-app.delete('/api/tasks/:id', (req, res) => {
-    const { id } = req.params;
-    const taskIndex = tasks.findIndex(t => t.id === id && t.userId === req.session.userId);
+// PUT to move a card between columns
+app.put('/api/cards/move', ensureAuthenticated, async (req, res) => {
+    const { cardId, newColumnId, newIndex } = req.body;
 
-    if (taskIndex === -1) {
-        return res.status(404).json({ error: 'Task not found or user not authorized' });
+    await db.read();
+    const board = db.data.boards[0];
+    let cardToMove = null;
+    let sourceColumn = null;
+
+    // Find and remove the card from its original column
+    board.columns.forEach(column => {
+        const cardIndex = column.cards.findIndex(c => c.id === cardId);
+        if (cardIndex > -1) {
+            sourceColumn = column;
+            cardToMove = column.cards.splice(cardIndex, 1)[0];
+        }
+    });
+
+    if (cardToMove) {
+        const destinationColumn = board.columns.find(c => c.id === newColumnId);
+        if (destinationColumn) {
+            // Add the card to the new column at the specified index
+            destinationColumn.cards.splice(newIndex, 0, cardToMove);
+            await db.write();
+            res.status(200).json({ message: 'Card moved successfully' });
+        } else {
+            // If the destination is not found, rollback (though it's unlikely)
+            sourceColumn.cards.push(cardToMove);
+            res.status(404).json({ message: 'Destination column not found' });
+        }
+    } else {
+        res.status(404).json({ message: 'Card not found' });
     }
-
-    tasks.splice(taskIndex, 1);
-    res.status(204).send(); // No Content
 });
 
-// --- Server Start ---
-
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+// Start the server after initializing the database
+initializeDatabase().then(() => {
+    app.listen(port, () => {
+        console.log(`Server running on http://localhost:${port}`);
+    });
 });
