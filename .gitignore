@@ -1,3 +1,2 @@
-node_modules
-.DS_Store
+# Firebase service account
 firebase-service-account.json

@@ -22,10 +22,10 @@ app.use(express.json());
 
 // Session configuration
 app.use(session({
-    secret: 'your-very-secret-key-change-it', // Ganti dengan secret key yang kuat
+    secret: '7b1e8a8c85ff1f8a075095479a55fc3190773b372e23fd34353bcce2317fcffb', // Ganti dengan secret key yang kuat
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } // Atur ke true jika menggunakan HTTPS
+    cookie: { secure: true } // Atur ke true jika menggunakan HTTPS
 }));
 
 // Middleware untuk memeriksa otentikasi
