@@ -1,3 +1,9 @@
+console.log('--- Vercel Environment Variables ---');
+console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not Set');
+console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not Set');
+console.log('FIREBASE_PRIVATE_KEY exists:', process.env.FIREBASE_PRIVATE_KEY ? 'Yes' : 'No');
+console.log('-------------------------------------');
+
 const express = require('express');
 const admin = require('firebase-admin');
 const session = require('express-session');
@@ -8,7 +14,8 @@ const app = express();
 let serviceAccount;
 
 // Check if running in a Vercel environment with the new variables
-if (process.env.FIREBASE_PRIVATE_KEY) {
+if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_PROJECT_ID) {
+  console.log('Initializing Firebase with environment variables.');
   serviceAccount = {
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
@@ -16,8 +23,16 @@ if (process.env.FIREBASE_PRIVATE_KEY) {
     privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
   };
 } else {
+  console.log('Environment variables not found. Falling back to local JSON file.');
   // For local development, fall back to the JSON file
-  serviceAccount = require('./firebase-service-account.json');
+  try {
+    serviceAccount = require('./firebase-service-account.json');
+  } catch (error) {
+    console.error('FATAL: Could not load firebase-service-account.json.');
+    console.error('Error details:', error.message);
+    // Exit if we are in a server environment and can't find the file
+    process.exit(1);
+  }
 }
 
 admin.initializeApp({
@@ -53,7 +68,7 @@ function checkAuth(req, res, next) {
 
 // --- Routes ---
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
+    res.sendFile(__dirname + '/public/login.html');
 });
 
 // Google Auth Endpoint
