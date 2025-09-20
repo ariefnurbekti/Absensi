@@ -6,7 +6,19 @@ const app = express();
 const port = 3000;
 
 // Initialize Firebase
-const serviceAccount = require('./firebase-service-account.json');
+let serviceAccount;
+
+// For Vercel deployment, use the environment variable.
+// The variable is expected to be a Base64 encoded JSON string.
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const buff = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64');
+    const text = buff.toString('utf-8');
+    serviceAccount = JSON.parse(text);
+} else {
+    // For local development, use the JSON file directly.
+    serviceAccount = require('./firebase-service-account.json');
+}
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
@@ -25,7 +37,8 @@ app.use(session({
     secret: '7b1e8a8c85ff1f8a075095479a55fc3190773b372e23fd34353bcce2317fcffb', // Ganti dengan secret key yang kuat
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: true } // Atur ke true jika menggunakan HTTPS
+    // Set cookie.secure to 'auto' or false for development, and true in production
+    cookie: { secure: 'auto' } 
 }));
 
 // Middleware untuk memeriksa otentikasi
@@ -131,6 +144,9 @@ app.get('/checkins', checkAuth, async (req, res) => {
     res.json(checkins);
 });
 
-app.listen(port, () => {
-    console.log(`Server listening at http://localhost:${port}`);
-});
+module.exports = app;
+
+// Hapus atau komentari bagian ini, Vercel akan menangani server
+// app.listen(port, () => {
+//     console.log(`Server listening at http://localhost:${port}`);
+// });
