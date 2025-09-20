@@ -1,109 +1,129 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-slate-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - PT Nira Medika</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Dashboard - Absensi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
 </head>
-<body>
-    <div class="navbar">
-        <div class="nav-left">
-            <a href="dashboard.html">Dashboard</a>
-            <a href="planner.html">Planner</a>
+<body class="h-full flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 flex flex-col bg-white border-r border-slate-200">
+        <div class="p-6 text-center border-b border-slate-200">
+            <h1 class="text-2xl font-bold text-sky-600">AbsensiApp</h1>
         </div>
-        <div class="nav-right">
-            <span id="user-info"></span>
-            <a href="/logout">Logout</a>
+        <div id="user-profile" class="p-6 flex flex-col items-center border-b border-slate-200">
+            <img id="user-pic" src="" class="w-20 h-20 rounded-full object-cover mb-2 shadow-md">
+            <span id="user-name" class="font-semibold text-slate-700">Loading...</span>
         </div>
-    </div>
-    <div class="container">
-        <h1>Dashboard</h1>
-        <div class="card-container">
-            <div class="card">
-                <h2>Check-in</h2>
-                <p>Click the button to check-in.</p>
-                <button id="checkin-btn">Check-in</button>
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="/dashboard.html" class="w-full flex items-center px-4 py-2 text-slate-700 bg-sky-100 rounded-lg font-semibold border-l-4 border-sky-500">
+                <i class="fas fa-tachometer-alt w-6 mr-3 text-sky-500"></i>
+                Dashboard
+            </a>
+            <a href="/planner.html" class="w-full flex items-center px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <i class="fas fa-calendar-check w-6 mr-3 text-slate-400"></i>
+                Planner
+            </a>
+        </nav>
+        <div class="p-4 border-t border-slate-200">
+            <a href="/logout" class="w-full flex items-center px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <i class="fas fa-sign-out-alt w-6 mr-3 text-slate-400"></i>
+                Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 overflow-y-auto">
+        <h1 class="text-4xl font-bold text-slate-800 mb-8">Dashboard</h1>
+
+        <!-- Grid Layout -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <!-- Check-in Card -->
+            <div class="md:col-span-1 bg-white p-6 rounded-2xl shadow-sm hover:shadow-lg transition-shadow border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-800 mb-2">Record Your Attendance</h2>
+                <p class="text-slate-500 mb-4">Ready for the day? Click the button below to mark your presence.</p>
+                <button id="checkin-btn" class="w-full bg-sky-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:bg-slate-300">
+                    Check In Now
+                </button>
             </div>
-            <div class="card">
-                <h2>Planner</h2>
-                <p>View and manage your tasks.</p>
-                <a href="planner.html">Go to Planner</a>
-            </div>
-            <div class="card">
-                <h2>Charts</h2>
+
+            <!-- Chart Card -->
+            <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm hover:shadow-lg transition-shadow border border-slate-200">
+                <h2 class="text-xl font-bold text-slate-800 mb-4">Your Weekly Activity</h2>
                 <canvas id="checkinChart"></canvas>
             </div>
         </div>
 
-        <div class="checkin-history">
-            <h2>Your Check-in History</h2>
-            <table id="checkin-table">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Check-in data will be populated here -->
-                </tbody>
-            </table>
+        <!-- Check-in History -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">Check-in History</h2>
+            <div class="overflow-x-auto">
+                <table id="checkin-table" class="w-full text-left">
+                    <thead class="border-b-2 border-slate-200">
+                        <tr>
+                            <th class="p-3 text-sm font-semibold text-slate-500">Username</th>
+                            <th class="p-3 text-sm font-semibold text-slate-500">Date & Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- JS will populate this -->
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
+    </main>
 
     <script>
         let checkinChart;
 
-        // Fungsi untuk mengambil data pengguna dan check-in
         async function initializeDashboard() {
             await fetchUserData();
             await fetchCheckins();
         }
 
-        // Mengambil data pengguna dari server
         async function fetchUserData() {
             try {
                 const response = await fetch('/api/user');
                 if (!response.ok) {
-                    // Jika tidak terotentikasi, redirect ke halaman login
                     window.location.href = '/login.html';
                     return;
                 }
                 const user = await response.json();
-                displayUserInfo(user);
+                document.getElementById('user-pic').src = user.picture;
+                document.getElementById('user-name').textContent = user.name;
             } catch (error) {
                 console.error('Error fetching user data:', error);
                 window.location.href = '/login.html';
             }
         }
 
-        // Menampilkan informasi pengguna di navbar
-        function displayUserInfo(user) {
-            const userInfoSpan = document.getElementById('user-info');
-            userInfoSpan.innerHTML = `
-                <img src="${user.picture}" class="profile-pic" alt="Profile Picture">
-                <span>Welcome, ${user.name}</span>
-            `;
-        }
+        document.getElementById('checkin-btn').addEventListener('click', async (event) => {
+            const button = event.currentTarget;
+            button.disabled = true;
+            button.textContent = 'Submitting...';
 
-        // Event listener untuk tombol check-in
-        document.getElementById('checkin-btn').addEventListener('click', async () => {
             try {
                 const response = await fetch('/checkin', { method: 'POST' });
                 if (response.ok) {
-                    alert('Check-in successful!');
-                    fetchCheckins(); // Muat ulang data check-in
+                    // Optionally show a success message
+                    fetchCheckins(); // Refresh data
                 } else {
-                    alert('Check-in failed.');
+                    alert('Check-in failed. You may have already checked in today.');
                 }
             } catch (error) {
                 console.error('Error during check-in:', error);
                 alert('An error occurred during check-in.');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Check In Now';
             }
         });
 
-        // Mengambil data check-in dari server
         async function fetchCheckins() {
             try {
                 const response = await fetch('/checkins');
@@ -115,19 +135,28 @@
             }
         }
 
-        // Mengisi tabel riwayat check-in
         function populateTable(checkins) {
             const tableBody = document.querySelector('#checkin-table tbody');
-            tableBody.innerHTML = ''; // Hapus data lama
+            tableBody.innerHTML = ''; // Clear old data
+
+            if (checkins.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="2" class="p-4 text-center text-slate-500">No check-ins found.</td>`;
+                tableBody.appendChild(row);
+                return;
+            }
 
             checkins.forEach(checkin => {
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${new Date(checkin.timestamp).toLocaleString()}</td>`;
+                row.className = 'border-b border-slate-100 hover:bg-slate-50';
+                row.innerHTML = `
+                    <td class="p-3 text-slate-700">${checkin.username}</td>
+                    <td class="p-3 text-slate-500">${new Date(checkin.timestamp).toLocaleString('en-GB')}</td>
+                `;
                 tableBody.appendChild(row);
             });
         }
 
-        // Merender grafik check-in
         function renderChart(checkins) {
             const ctx = document.getElementById('checkinChart').getContext('2d');
             const checkinsByDay = {};
@@ -148,11 +177,13 @@
             const chartData = {
                 labels: Object.keys(checkinsByDay).map(d => new Date(d).toLocaleDateString('en-US', { weekday: 'short'})),
                 datasets: [{
-                    label: 'Check-ins per Day',
+                    label: 'Daily Check-ins',
                     data: Object.values(checkinsByDay),
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 2,
+                    borderRadius: 5,
+                    tension: 0.4
                 }]
             };
 
@@ -164,17 +195,21 @@
                 type: 'bar',
                 data: chartData,
                 options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
                     scales: {
                         y: {
                             beginAtZero: true,
                             ticks: { stepSize: 1 }
                         }
+                    },
+                    plugins: {
+                        legend: { display: false }
                     }
                 }
             });
         }
 
-        // Panggil fungsi inisialisasi saat halaman dimuat
         document.addEventListener('DOMContentLoaded', initializeDashboard);
     </script>
 </body>

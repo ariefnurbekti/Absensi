@@ -1,1 +1,74 @@
-<html><head><title>Settings</title></head><body><h2>Settings Page</h2></body></html>
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Absensi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+</head>
+<body class="h-full flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 flex flex-col bg-white border-r border-slate-200">
+        <div class="p-6 text-center border-b border-slate-200">
+            <h1 class="text-2xl font-bold text-sky-600">AbsensiApp</h1>
+        </div>
+        <div id="user-profile" class="p-6 flex flex-col items-center border-b border-slate-200">
+            <img id="user-pic" src="" class="w-20 h-20 rounded-full object-cover mb-2 shadow-md">
+            <span id="user-name" class="font-semibold text-slate-700">Loading...</span>
+        </div>
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="/dashboard.html" class="w-full flex items-center px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <i class="fas fa-tachometer-alt w-6 mr-3 text-slate-400"></i>
+                Dashboard
+            </a>
+            <a href="/planner.html" class="w-full flex items-center px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <i class="fas fa-calendar-check w-6 mr-3 text-slate-400"></i>
+                Planner
+            </a>
+            <a href="/settings.html" class="w-full flex items-center px-4 py-2 text-slate-700 bg-sky-100 rounded-lg font-semibold border-l-4 border-sky-500">
+                <i class="fas fa-cog w-6 mr-3 text-sky-500"></i>
+                Settings
+            </a>
+        </nav>
+        <div class="p-4 border-t border-slate-200">
+            <a href="/logout" class="w-full flex items-center px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                <i class="fas fa-sign-out-alt w-6 mr-3 text-slate-400"></i>
+                Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 overflow-y-auto">
+        <h1 class="text-4xl font-bold text-slate-800 mb-8">Settings</h1>
+
+        <!-- Placeholder Content -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">Application Settings</h2>
+            <p class="text-slate-500">This section is under construction. User and application settings will be available here soon.</p>
+        </div>
+    </main>
+
+    <script>
+        // Basic user data fetcher for sidebar consistency
+        async function fetchUserData() {
+            try {
+                const response = await fetch('/api/user');
+                if (!response.ok) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+                const user = await response.json();
+                document.getElementById('user-pic').src = user.picture;
+                document.getElementById('user-name').textContent = user.name;
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                window.location.href = '/login.html';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', fetchUserData);
+    </script>
+</body>
+</html>
