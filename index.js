@@ -25,15 +25,15 @@ async function initializeDatabase() {
                         id: 'col-1',
                         title: 'Backlog',
                         cards: [
-                            { id: uid(), text: 'Design the login page' },
-                            { id: uid(), text: 'Set up the database schema' }
+                            { id: uid(), text: 'Design the login page', description: '' },
+                            { id: uid(), text: 'Set up the database schema', description: 'Create the initial schema for users, projects, and tasks.' }
                         ]
                     },
                     {
                         id: 'col-2',
                         title: 'In Progress',
                         cards: [
-                            { id: uid(), text: 'Develop the main dashboard UI' }
+                            { id: uid(), text: 'Develop the main dashboard UI', description: 'Build the main dashboard using Tailwind CSS.' }
                         ]
                     },
                     {
@@ -136,14 +136,11 @@ app.post('/api/checkin', ensureAuthenticated, async (req, res) => {
 
 // --- Kanban Board API Endpoints ---
 
-// GET the entire board structure
 app.get('/api/board', ensureAuthenticated, async (req, res) => {
     await db.read();
-    // For now, we only have one board
     res.json(db.data.boards[0]);
 });
 
-// POST a new card to a column
 app.post('/api/cards', ensureAuthenticated, async (req, res) => {
     const { columnId, text } = req.body;
     if (!columnId || !text) {
@@ -153,7 +150,7 @@ app.post('/api/cards', ensureAuthenticated, async (req, res) => {
     const board = db.data.boards[0];
     const column = board.columns.find(c => c.id === columnId);
     if (column) {
-        const newCard = { id: uid(), text };
+        const newCard = { id: uid(), text, description: '' };
         column.cards.push(newCard);
         await db.write();
         res.status(201).json(newCard);
@@ -162,16 +159,13 @@ app.post('/api/cards', ensureAuthenticated, async (req, res) => {
     }
 });
 
-// PUT to move a card between columns
 app.put('/api/cards/move', ensureAuthenticated, async (req, res) => {
     const { cardId, newColumnId, newIndex } = req.body;
-
     await db.read();
     const board = db.data.boards[0];
     let cardToMove = null;
     let sourceColumn = null;
 
-    // Find and remove the card from its original column
     board.columns.forEach(column => {
         const cardIndex = column.cards.findIndex(c => c.id === cardId);
         if (cardIndex > -1) {
@@ -183,15 +177,49 @@ app.put('/api/cards/move', ensureAuthenticated, async (req, res) => {
     if (cardToMove) {
         const destinationColumn = board.columns.find(c => c.id === newColumnId);
         if (destinationColumn) {
-            // Add the card to the new column at the specified index
             destinationColumn.cards.splice(newIndex, 0, cardToMove);
             await db.write();
             res.status(200).json({ message: 'Card moved successfully' });
         } else {
-            // If the destination is not found, rollback (though it's unlikely)
-            sourceColumn.cards.push(cardToMove);
             res.status(404).json({ message: 'Destination column not found' });
         }
+    } else {
+        res.status(404).json({ message: 'Card not found' });
+    }
+});
+
+// --- Card Details API Endpoints ---
+
+app.get('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
+    await db.read();
+    const cardId = req.params.cardId;
+    let card = null;
+    db.data.boards[0].columns.forEach(column => {
+        const foundCard = column.cards.find(c => c.id === cardId);
+        if (foundCard) card = foundCard;
+    });
+    if (card) {
+        res.json(card);
+    } else {
+        res.status(404).json({ message: 'Card not found' });
+    }
+});
+
+app.put('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
+    await db.read();
+    const cardId = req.params.cardId;
+    const { text, description } = req.body;
+    let cardToUpdate = null;
+    db.data.boards[0].columns.forEach(column => {
+        const foundCard = column.cards.find(c => c.id === cardId);
+        if (foundCard) cardToUpdate = foundCard;
+    });
+
+    if (cardToUpdate) {
+        if (text !== undefined) cardToUpdate.text = text;
+        if (description !== undefined) cardToUpdate.description = description;
+        await db.write();
+        res.json(cardToUpdate);
     } else {
         res.status(404).json({ message: 'Card not found' });
     }
