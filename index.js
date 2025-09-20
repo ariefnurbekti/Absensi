@@ -225,6 +225,26 @@ app.put('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
     }
 });
 
+app.delete('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
+    await db.read();
+    const cardId = req.params.cardId;
+    let cardFound = false;
+    db.data.boards[0].columns.forEach(column => {
+        const cardIndex = column.cards.findIndex(c => c.id === cardId);
+        if (cardIndex > -1) {
+            column.cards.splice(cardIndex, 1);
+            cardFound = true;
+        }
+    });
+
+    if (cardFound) {
+        await db.write();
+        res.status(200).json({ message: 'Card deleted successfully' });
+    } else {
+        res.status(404).json({ message: 'Card not found' });
+    }
+});
+
 // Start the server after initializing the database
 initializeDatabase().then(() => {
     app.listen(port, () => {
