@@ -1,39 +1,26 @@
-console.log('--- Vercel Environment Variables ---');
-console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not Set');
-console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not Set');
-console.log('FIREBASE_PRIVATE_KEY exists:', process.env.FIREBASE_PRIVATE_KEY ? 'Yes' : 'No');
-console.log('-------------------------------------');
-
 const express = require('express');
 const admin = require('firebase-admin');
 const session = require('express-session');
 
+// This check is CRITICAL for Vercel deployment.
+if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY || !process.env.FIREBASE_CLIENT_EMAIL) {
+    console.error('FATAL ERROR: Firebase environment variables are not set.');
+    // In a server environment, you should exit if the config is missing.
+    if (process.env.VERCEL) {
+        process.exit(1);
+    }
+}
+
 const app = express();
 
 // --- Firebase Initialization ---
-let serviceAccount;
-
-// Check if running in a Vercel environment with the new variables
-if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_PROJECT_ID) {
-  console.log('Initializing Firebase with environment variables.');
-  serviceAccount = {
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // The private key comes from the environment variable, replacing escaped newlines
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-  };
-} else {
-  console.log('Environment variables not found. Falling back to local JSON file.');
-  // For local development, fall back to the JSON file
-  try {
-    serviceAccount = require('./firebase-service-account.json');
-  } catch (error) {
-    console.error('FATAL: Could not load firebase-service-account.json.');
-    console.error('Error details:', error.message);
-    // Exit if we are in a server environment and can't find the file
-    process.exit(1);
-  }
-}
+// This configuration now ONLY uses environment variables.
+const serviceAccount = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  // The private key from the environment variable must have its escaped newlines replaced.
+  privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+};
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
