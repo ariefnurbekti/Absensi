@@ -1,12 +1,14 @@
+require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
-const { Low, JSONFile } = require('lowdb');
+const { Low } = require('lowdb');
+const { JSONFile } = require('lowdb/node');
 const ShortUniqueId = require('short-unique-id');
 
 const adapter = new JSONFile('db.json');
-const db = new Low(adapter);
+const db = new Low(adapter, { users: [], boards: [] });
 
 const uid = new ShortUniqueId({ length: 10 });
 
@@ -15,7 +17,7 @@ async function initializeDatabase() {
     await db.read();
     db.data = db.data || {};
     db.data.users = db.data.users || [];
-    if (!db.data.boards) {
+    if (!db.data.boards || db.data.boards.length === 0) {
         db.data.boards = [
             {
                 id: 'board-main',
