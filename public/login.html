@@ -33,6 +33,10 @@
             </svg>
             <span class="font-medium text-slate-700">Sign in with Google</span>
         </button>
+
+        <button id="anonymous-signin" class="w-full flex items-center justify-center bg-slate-600 text-white rounded-lg p-3 transition-all hover:shadow-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 mt-4">
+            <span class="font-medium">Sign in Anonymously</span>
+        </button>
     </div>
 
     <script>
@@ -85,6 +89,37 @@
             // Trigger the hidden default Google button
             document.querySelector('#g-signin2-default div').click();
         });
+
+        function signInAnonymously() {
+            // Show loading state
+            const anonymousButton = document.getElementById('anonymous-signin');
+            anonymousButton.disabled = true;
+            anonymousButton.innerHTML = '<span class="font-medium text-slate-300">Signing in...</span>';
+
+            fetch('/auth/anonymous', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Anonymous authentication failed');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                // Re-enable button and show an error message
+                anonymousButton.disabled = false;
+                anonymousButton.innerHTML = '<span class="font-medium text-red-500">Login Failed. Try Again.</span>';
+            });
+        }
+
+        document.getElementById('anonymous-signin').addEventListener('click', signInAnonymously);
     </script>
     <script src="https://apis.google.com/js/platform.js?onload=renderGoogleButton" async defer></script>
 </body>

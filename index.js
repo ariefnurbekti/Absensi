@@ -27,15 +27,15 @@ async function initializeDatabase() {
                         id: 'col-1',
                         title: 'Backlog',
                         cards: [
-                            { id: uid(), text: 'Design the login page', description: '' },
-                            { id: uid(), text: 'Set up the database schema', description: 'Create the initial schema for users, projects, and tasks.' }
+                            { id: uid.rnd(), text: 'Design the login page', description: '' },
+                            { id: uid.rnd(), text: 'Set up the database schema', description: 'Create the initial schema for users, projects, and tasks.' }
                         ]
                     },
                     {
                         id: 'col-2',
                         title: 'In Progress',
                         cards: [
-                            { id: uid(), text: 'Develop the main dashboard UI', description: 'Build the main dashboard using Tailwind CSS.' }
+                            { id: uid.rnd(), text: 'Develop the main dashboard UI', description: 'Build the main dashboard using Tailwind CSS.' }
                         ]
                     },
                     {
@@ -112,6 +112,29 @@ app.get('/logout', (req, res, next) => {
     });
 });
 
+app.post('/auth/anonymous', async (req, res, next) => {
+    const anonymousId = `anon_${uid.rnd()}`;
+    const user = {
+        id: anonymousId,
+        name: 'Anonymous User',
+        isAnonymous: true,
+        picture: '', // No picture for anonymous users
+        checkIns: [],
+    };
+
+    await db.read();
+    db.data.users.push(user);
+    await db.write();
+
+    req.login(user, (err) => {
+        if (err) {
+            return next(err);
+        }
+        res.json({ redirectUrl: '/dashboard.html' });
+    });
+});
+
+
 // Middleware to check authentication
 function ensureAuthenticated(req, res, next) {
     if (req.isAuthenticated()) { return next(); }
@@ -152,7 +175,7 @@ app.post('/api/cards', ensureAuthenticated, async (req, res) => {
     const board = db.data.boards[0];
     const column = board.columns.find(c => c.id === columnId);
     if (column) {
-        const newCard = { id: uid(), text, description: '' };
+        const newCard = { id: uid.rnd(), text, description: '' };
         column.cards.push(newCard);
         await db.write();
         res.status(201).json(newCard);
