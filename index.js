@@ -23,15 +23,15 @@ async function initializeDatabase() {
                         id: 'col-1',
                         title: 'Backlog',
                         cards: [
-                            { id: uid.rnd(), text: 'Design the login page', description: '' },
-                            { id: uid.rnd(), text: 'Set up the database schema', description: 'Create the initial schema for users, projects, and tasks.' }
+                            { id: uid.rnd(), text: 'Design the new homepage', description: '' },
+                            { id: uid.rnd(), text: 'Develop API for user authentication', description: '' }
                         ]
                     },
                     {
                         id: 'col-2',
                         title: 'In Progress',
                         cards: [
-                            { id: uid.rnd(), text: 'Develop the main dashboard UI', description: 'Build the main dashboard using Tailwind CSS.' }
+                            { id: uid.rnd(), text: 'Implement the Kanban board UI', description: '' }
                         ]
                     },
                     {
@@ -53,15 +53,17 @@ const port = process.env.PORT || 3000;
 app.use(express.static('public'));
 app.use(express.json());
 
-// No authentication needed, all routes are public
-
 // API Routes
 app.get('/api/user', (req, res) => {
     res.json({ name: 'Guest' });
 });
 
-app.post('/api/checkin', async (req, res) => {
-    res.status(403).json({ message: 'Check-in not available for guests' });
+app.post('/api/checkin', (req, res) => {
+    res.status(403).json({ message: 'Check-in not available' });
+});
+
+app.get('/api/checkins', (req, res) => {
+    res.json([]);
 });
 
 // --- Kanban Board API Endpoints ---
