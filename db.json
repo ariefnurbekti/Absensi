@@ -1,0 +1,43 @@
+{
+  "users": [],
+  "boards": [
+    {
+      "id": "board-main",
+      "title": "Project Alpha",
+      "columns": [
+        {
+          "id": "col-1",
+          "title": "Backlog",
+          "cards": [
+            {
+              "id": "dH7WRzlVk3",
+              "text": "Design the login page",
+              "description": ""
+            },
+            {
+              "id": "AtxD0gbE4U",
+              "text": "Set up the database schema",
+              "description": "Create the initial schema for users, projects, and tasks."
+            }
+          ]
+        },
+        {
+          "id": "col-2",
+          "title": "In Progress",
+          "cards": [
+            {
+              "id": "XdEZLPyRHm",
+              "text": "Develop the main dashboard UI",
+              "description": "Build the main dashboard using Tailwind CSS."
+            }
+          ]
+        },
+        {
+          "id": "col-3",
+          "title": "Done",
+          "cards": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const session = require('express-session');
-const passport = require('passport');
-const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
 const { Low } = require('lowdb');
 const { JSONFile } = require('lowdb/node');
 const ShortUniqueId = require('short-unique-id');
@@ -12,7 +9,6 @@ const db = new Low(adapter, { users: [], boards: [] });
 
 const uid = new ShortUniqueId({ length: 10 });
 
-// Initialize the database with a default structure if it's empty
 async function initializeDatabase() {
     await db.read();
     db.data = db.data || {};
@@ -56,117 +52,26 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(express.static('public'));
 app.use(express.json());
-app.use(session({
-    secret: 'your_secret_key',
-    resave: false,
-    saveUninitialized: true,
-}));
-app.use(passport.initialize());
-app.use(passport.session());
 
-// Passport configuration
-passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: '/auth/google/callback',
-    scope: ['profile', 'email']
-}, async (accessToken, refreshToken, profile, done) => {
-    await db.read();
-    let user = db.data.users.find(u => u.id === profile.id);
-    if (!user) {
-        user = {
-            id: profile.id,
-            name: profile.displayName,
-            email: profile.emails[0].value,
-            picture: profile.photos[0].value,
-            checkIns: [],
-        };
-        db.data.users.push(user);
-        await db.write();
-    }
-    done(null, user);
-}));
-
-passport.serializeUser((user, done) => {
-    done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-    await db.read();
-    const user = db.data.users.find(u => u.id === id);
-    done(null, user);
-});
-
-// --- Routes ---
-
-// Auth Routes
-app.get('/auth/google', passport.authenticate('google'));
-app.get('/auth/google/callback', passport.authenticate('google', {
-    successRedirect: '/dashboard.html',
-    failureRedirect: '/login.html'
-}));
-app.get('/logout', (req, res, next) => {
-    req.logout(err => {
-        if (err) { return next(err); }
-        res.redirect('/login.html');
-    });
-});
-
-app.post('/auth/anonymous', async (req, res, next) => {
-    const anonymousId = `anon_${uid.rnd()}`;
-    const user = {
-        id: anonymousId,
-        name: 'Anonymous User',
-        isAnonymous: true,
-        picture: '', // No picture for anonymous users
-        checkIns: [],
-    };
-
-    await db.read();
-    db.data.users.push(user);
-    await db.write();
-
-    req.login(user, (err) => {
-        if (err) {
-            return next(err);
-        }
-        res.json({ redirectUrl: '/dashboard.html' });
-    });
-});
-
-
-// Middleware to check authentication
-function ensureAuthenticated(req, res, next) {
-    if (req.isAuthenticated()) { return next(); }
-    res.status(401).redirect('/login.html');
-}
+// No authentication needed, all routes are public
 
 // API Routes
-app.get('/api/user', ensureAuthenticated, (req, res) => {
-    res.json(req.user);
+app.get('/api/user', (req, res) => {
+    res.json({ name: 'Guest' });
 });
 
-app.post('/api/checkin', ensureAuthenticated, async (req, res) => {
-    await db.read();
-    const user = db.data.users.find(u => u.id === req.user.id);
-    const today = new Date().toLocaleDateString();
-    if (user && !user.checkIns.some(c => c.date === today)) {
-        user.checkIns.push({ date: today, time: new Date().toLocaleTimeString() });
-        await db.write();
-        res.status(200).json({ message: 'Checked in successfully' });
-    } else {
-        res.status(400).json({ message: 'Already checked in today' });
-    }
+app.post('/api/checkin', async (req, res) => {
+    res.status(403).json({ message: 'Check-in not available for guests' });
 });
 
 // --- Kanban Board API Endpoints ---
 
-app.get('/api/board', ensureAuthenticated, async (req, res) => {
+app.get('/api/board', async (req, res) => {
     await db.read();
     res.json(db.data.boards[0]);
 });
 
-app.post('/api/cards', ensureAuthenticated, async (req, res) => {
+app.post('/api/cards', async (req, res) => {
     const { columnId, text } = req.body;
     if (!columnId || !text) {
         return res.status(400).json({ message: 'Column ID and text are required' });
@@ -184,7 +89,7 @@ app.post('/api/cards', ensureAuthenticated, async (req, res) => {
     }
 });
 
-app.put('/api/cards/move', ensureAuthenticated, async (req, res) => {
+app.put('/api/cards/move', async (req, res) => {
     const { cardId, newColumnId, newIndex } = req.body;
     await db.read();
     const board = db.data.boards[0];
@@ -215,7 +120,7 @@ app.put('/api/cards/move', ensureAuthenticated, async (req, res) => {
 
 // --- Card Details API Endpoints ---
 
-app.get('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
+app.get('/api/cards/:cardId', async (req, res) => {
     await db.read();
     const cardId = req.params.cardId;
     let card = null;
@@ -230,7 +135,7 @@ app.get('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
     }
 });
 
-app.put('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
+app.put('/api/cards/:cardId', async (req, res) => {
     await db.read();
     const cardId = req.params.cardId;
     const { text, description } = req.body;
@@ -250,7 +155,7 @@ app.put('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
     }
 });
 
-app.delete('/api/cards/:cardId', ensureAuthenticated, async (req, res) => {
+app.delete('/api/cards/:cardId', async (req, res) => {
     await db.read();
     const cardId = req.params.cardId;
     let cardFound = false;

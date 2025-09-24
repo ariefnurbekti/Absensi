@@ -8,7 +8,6 @@ Proyek ini dimulai sebagai aplikasi absensi karyawan dengan fitur check-in dan p
 
 ## Fitur Utama
 
-*   **Otentikasi Google:** Login yang aman dan mudah menggunakan akun Google (OAuth 2.0).
 *   **Papan Proyek Kanban:** Visualisasikan alur kerja dengan papan Kanban yang interaktif.
     *   **Drag & Drop:** Pindahkan kartu tugas antar kolom dengan mudah.
     *   **Kolom Dinamis:** Atur tugas dalam kolom seperti "Backlog", "In Progress", dan "Done".
@@ -39,20 +38,13 @@ Proyek ini dimulai sebagai aplikasi absensi karyawan dengan fitur check-in dan p
     npm install
     ```
 
-3.  **Konfigurasi Variabel Lingkungan:**
-    Buat file `.env` di root proyek dan tambahkan kredensial Google OAuth Anda:
-    ```
-    GOOGLE_CLIENT_ID=your_google_client_id
-    GOOGLE_CLIENT_SECRET=your_google_client_secret
-    ```
-
-4.  **Mulai server pengembangan:**
+3.  **Mulai server pengembangan:**
 
     ```bash
     node index.js
     ```
 
-5.  Buka browser Anda dan navigasikan ke `http://localhost:3000`.
+4.  Buka browser Anda dan navigasikan ke `http://localhost:3000`.
 
 ## Deployment
 
